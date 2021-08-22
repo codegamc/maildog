@@ -55,11 +55,17 @@ function getSESMessage(event: SNSEvent): SESMessage {
   return message;
 }
 
+/**
+ * This handler will send a message from the SNS topic and forward it to the downstream email address.
+ */
 export const handler: SNSHandler = (event, context, callback) => {
   let message: SESMessage;
 
+  // Lets verify that the message is an SES message...
   try {
     message = getSESMessage(event);
+
+    console.log(message);
 
     if (!isSESReceiptS3Action(message.receipt.action)) {
       throw new Error(
@@ -75,15 +81,32 @@ export const handler: SNSHandler = (event, context, callback) => {
     throw e;
   }
 
+  // Now that we know its an SESMessage...
+  //
+  // not sure what this is
+
+  console.log('message.receipt.action.objectKey');
+  console.log(message.receipt.action.objectKey);
+
   const emailKeyPrefix = message.receipt.action.objectKey.replace(
     message.mail.messageId,
     '',
   );
+
+  console.log('emailKeyPrefix');
+  console.log(emailKeyPrefix);
+
+  console.log('message.mail.messageId');
+  console.log(message.mail.messageId);
+
+  // This is the bucket that contains the email?
   const emailBucket = message.receipt.action.bucketName;
+
   const config = (process.env.CONFIG_PER_KEY_PREFIX ?? {}) as Record<
     string,
     DispatcherConfig
   >;
+
   const overrides = {
     config: {
       ...config[emailKeyPrefix],
@@ -106,5 +129,15 @@ export const handler: SNSHandler = (event, context, callback) => {
     ],
   };
 
+  console.log('sesEvent');
+  console.log(sesEvent);
+
+  // SesEvent: Passes in Message
+  // Message contains the SESEmail object
+  // Context: passed into handle
+  // ?
+  // Callback: passed into handle
+  // ?
+  // Overrides: Contains a config, (allow plus sign, email prefix, bucket)
   LambdaForwarder.handler(sesEvent, context, callback, overrides);
 };

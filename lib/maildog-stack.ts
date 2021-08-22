@@ -33,11 +33,13 @@ interface MailDogStackProps extends cdk.StackProps {
   config: MailDogConfig;
 }
 
+/**
+ * This is a CDK stack associated with Mail Dog.
+ */
 export class MailDogStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props: MailDogStackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
     const domainRuleEntries = Object.entries(props.config.domains).map<
       [string, MailDogDomainRule]
     >(([domain, rule]) => [
@@ -51,10 +53,18 @@ export class MailDogStack extends cdk.Stack {
         alias: rule.alias ?? {},
       },
     ]);
+
+    /**
+     * The s3 bucket associated with storing the data of the email.
+     */
     const bucket = new s3.Bucket(this, 'Bucket', {
       lifecycleRules: [
         {
-          expiration: cdk.Duration.days(365),
+          //TODO: Consider keeping the duration as is (or modified)
+          // but support a long-term low cost alternative storage location (Glacier, B2, etc.)
+          // Not a big deal yet...
+
+          // expiration: cdk.Duration.days(365),
           transitions: [
             {
               storageClass: s3.StorageClass.INFREQUENT_ACCESS,
@@ -68,10 +78,26 @@ export class MailDogStack extends cdk.Stack {
         },
       ],
     });
+
+    /**
+     * The mail feed is the SNS topic that tells the dispatcher that an email has arrived.
+     * The SNS topic is subscribed to the s3 bucket that stores the emails. It is also
+     * subscribed to the scheduler lambda that listens to the DSQ.
+     */
     const mailFeed = new sns.Topic(this, 'MailFeed');
+
+    /**
+     * This dead letter queue (DLQ) is where emails go when the Dispatcher fails. It has
+     * 14 days of retention.
+     */
     const deadLetterQueue = new sqs.Queue(this, 'DeadLetterQueue', {
       retentionPeriod: cdk.Duration.days(14),
     });
+
+    /**
+     * This cloud watch alarm is triggered when the DSQ rises above the threshold. This should
+     * alarm when there are at least 1 emails in ther e
+     */
     const alarm = new cloudwatch.Alarm(this, 'MailAlarm', {
       metric: deadLetterQueue.metricApproximateNumberOfMessagesVisible({
         statistic: 'Average',
@@ -81,6 +107,11 @@ export class MailDogStack extends cdk.Stack {
       evaluationPeriods: 1,
       treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
     });
+
+    /**
+     * The dispatcher is a lambda function that takes the incoming emails and
+     * forwards them as necessary.
+     */
     const dispatcher = new lambda.NodejsFunction(this, 'Dispatcher', {
       entry: path.resolve(__dirname, './maildog-stack.dispatcher.ts'),
       bundling: {
@@ -139,6 +170,10 @@ export class MailDogStack extends cdk.Stack {
         }),
       ],
     });
+
+    /**
+     * The spam filter is a lambda function that checks if an email should be spam.
+     */
     const spamFilter = new lambda.NodejsFunction(this, 'SpamFilter', {
       entry: path.resolve(__dirname, './maildog-stack.spam-filter.ts'),
       bundling: {
@@ -160,6 +195,11 @@ export class MailDogStack extends cdk.Stack {
         }),
       ],
     });
+
+    /**
+     * The ReceiptRuleSet is a ruleset for SES that will tell the service what
+     * to do with an email it recieves.
+     */
     const ruleset = new ses.ReceiptRuleSet(this, 'ReceiptRuleSet', {
       receiptRuleSetName: `${props.stackName ?? 'MailDog'}-ReceiptRuleSet`,
       dropSpam: false, // maybe a bug, it is not added as first rule
@@ -216,6 +256,10 @@ export class MailDogStack extends cdk.Stack {
       }),
     });
 
+    /**
+     * The scheduler will take failed messages from the DLQ and retry them.
+     * It is invoked from github actions.
+     */
     new lambda.NodejsFunction(this, 'Scheduler', {
       entry: path.resolve(__dirname, './maildog-stack.scheduler.ts'),
       bundling: {
@@ -255,6 +299,9 @@ export class MailDogStack extends cdk.Stack {
 
     alarm.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY);
     ruleset.applyRemovalPolicy(cdk.RemovalPolicy.DESTROY);
+
+    // Telling lambda for the dispatcher to subscribe to the SNS topic used to
+    // update on mail events.
     mailFeed.addSubscription(
       new snsSubscriptions.LambdaSubscription(dispatcher, {
         deadLetterQueue,

@@ -10,6 +10,11 @@ import { SQS, SNS } from 'aws-sdk';
 
 type Event = SQSEvent | SNSEvent;
 
+/**
+ * isSESMessage checks if a message is a valid SES Message.
+ * @param message: of type any
+ * @returns true if the message is wellformed
+ */
 function isSESMessage(message: any): message is SESMessage {
   return (
     message &&
@@ -18,6 +23,9 @@ function isSESMessage(message: any): message is SESMessage {
   );
 }
 
+/**
+ * isEvent returns true if event is of type Event
+ */
 function isEvent(event: any): event is Event {
   return event && Array.isArray(event.Records);
 }
@@ -30,6 +38,10 @@ function isSQSRecord(record: any): record is SQSRecord {
   return record.eventSource === 'aws:sqs';
 }
 
+/**
+ * parseRecord parses a Event Record and returns an SES Message for that record
+ * @param record
+ */
 function parseRecord(record: SNSEventRecord | SQSRecord): SESMessage | null {
   let content: string;
 
@@ -54,6 +66,11 @@ function parseRecord(record: SNSEventRecord | SQSRecord): SESMessage | null {
   return parseMessage(content);
 }
 
+/**
+ * Converts and parses the JSON content of a SESMessage.
+ * @param content is a JSON string that gets parsed into an SESMessage
+ * @returns SESMessage for the corresponding content.
+ */
 function parseMessage(content: string): SESMessage | null {
   let message;
 
@@ -84,6 +101,9 @@ function parseMessage(content: string): SESMessage | null {
   return parseRecord(message.Records[0]);
 }
 
+/**
+ * Gets messages from SQS.
+ */
 async function getMessages(sqs: SQS): Promise<SQS.Message[]> {
   let messages: SQS.Message[] = [];
 
@@ -214,6 +234,9 @@ async function deleteMessages(
   });
 }
 
+/**
+ * This handler handles the DLQ... todo more description
+ */
 export const handler: SQSHandler = async () => {
   const sqs = new SQS();
   const sns = new SNS();
