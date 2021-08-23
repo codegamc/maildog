@@ -111,6 +111,8 @@ export class MailDogStack extends cdk.Stack {
     /**
      * The dispatcher is a lambda function that takes the incoming emails and
      * forwards them as necessary.
+     *
+     * It also encodes the config into the env and updates it to match the expected input config...
      */
     const dispatcher = new lambda.NodejsFunction(this, 'Dispatcher', {
       entry: path.resolve(__dirname, './maildog-stack.dispatcher.ts'),

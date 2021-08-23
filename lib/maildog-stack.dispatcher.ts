@@ -131,7 +131,7 @@ export const handler: SNSHandler = (event, context, callback) => {
   console.log(config);
 
   // https://github.com/arithmetric/aws-lambda-ses-forwarder/blob/master/index.js
-  const overrides = {
+  const overridesOld = {
     // An object that defines the S3 storage location and mapping for email forwarding.
     config: {
       // Not sure what this does:
@@ -177,10 +177,14 @@ export const handler: SNSHandler = (event, context, callback) => {
     // steps:[],
   };
 
-  const overridesFuture = {
+  const atDomain = '@' + emailKeyPrefix.slice(0, emailKeyPrefix.length - 1);
+  const forwardDestination = config[emailKeyPrefix]['forwardMapping'][atDomain];
+  const fromEmail = 'noreply' + atDomain;
+
+  const overrides = {
     // This should become reply+BASE_64_ENCODED_DESTINATION
     // we need to adjust this (in the forwarding case)
-    fromEmail: 'noreply@domain.email',
+    fromEmail: fromEmail,
 
     // We don't want a subject prefix.
     subjectPrefix: '',
@@ -192,13 +196,16 @@ export const handler: SNSHandler = (event, context, callback) => {
     allowPlusSign: true,
     //
     forwardMapping: {
+      //TODO: in future, any special overrides can end up here (if special domains are treated differently)
       // "example@domain.com":[
       //   "forward@address.com"
       // ],
 
       // All emails should get forwarded on...
+      // this turns @domain.email as key, and forwardDestination (from config)
+      // as the destination for that domain
       //
-      '@example.com': ['forward@address.com'],
+      atDomain: [forwardDestination],
     },
   };
 
