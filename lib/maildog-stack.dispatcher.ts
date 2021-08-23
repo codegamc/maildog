@@ -119,16 +119,10 @@ export const handler: SNSHandler = (event, context, callback) => {
   // TODO: Add description here...
   const rawConfig = process.env.CONFIG_PER_KEY_PREFIX ?? {};
 
-  console.log('rawConfig initally');
-  console.log(rawConfig);
-
   const config = (process.env.CONFIG_PER_KEY_PREFIX ?? {}) as Record<
     string,
     DispatcherConfig
   >;
-
-  console.log('config initally');
-  console.log(config);
 
   // https://github.com/arithmetric/aws-lambda-ses-forwarder/blob/master/index.js
   const overridesOld = {
@@ -177,9 +171,15 @@ export const handler: SNSHandler = (event, context, callback) => {
     // steps:[],
   };
 
+  console.log('overridesOld: ', overridesOld);
+
   const atDomain = '@' + emailKeyPrefix.slice(0, emailKeyPrefix.length - 1);
   const forwardDestination = config[emailKeyPrefix]['forwardMapping'][atDomain];
   const fromEmail = 'noreply' + atDomain;
+
+  console.log('atDomain: ', atDomain);
+  console.log('forwardDestination: ', forwardDestination);
+  console.log('fromEmail: ', fromEmail);
 
   const overrides = {
     // This should become reply+BASE_64_ENCODED_DESTINATION
