@@ -181,35 +181,38 @@ export const handler: SNSHandler = (event, context, callback) => {
   console.log('forwardDestination: ', forwardDestination);
   console.log('fromEmail: ', fromEmail);
 
-  const atDomainMapping = {
-    atDomain: [forwardDestination.toString()],
-  } as Record<string, Array<string>>;
+  // const atDomainMapping = {
+  //   atDomain: [forwardDestination as string],
+  // } as Record<string, Array<string>>;
 
   const overrides = {
-    // This should become reply+BASE_64_ENCODED_DESTINATION
-    // we need to adjust this (in the forwarding case)
-    fromEmail: fromEmail,
+    config: {
+      ...config[emailKeyPrefix],
 
-    // We don't want a subject prefix.
-    subjectPrefix: '',
+      // This should become reply+BASE_64_ENCODED_DESTINATION
+      // we need to adjust this (in the forwarding case)
+      fromEmail: fromEmail,
 
-    // The bucket the original email is contained in
-    emailBucket: emailBucket,
+      // We don't want a subject prefix.
+      subjectPrefix: '',
 
-    // Do we really want or care about this? // TODO
-    allowPlusSign: true,
-    //
-    forwardMapping: {
-      //TODO: in future, any special overrides can end up here (if special domains are treated differently)
-      // "example@domain.com":[
-      //   "forward@address.com"
-      // ],
+      // The bucket the original email is contained in
+      emailBucket: emailBucket,
 
-      // All emails should get forwarded on...
-      // this turns @domain.email as key, and forwardDestination (from config)
-      // as the destination for that domain
+      // Do we really want or care about this? // TODO
+      allowPlusSign: true,
       //
-      atDomainMapping,
+      // forwardMapping: {
+      //   //TODO: in future, any special overrides can end up here (if special domains are treated differently)
+      //   // "example@domain.com":[
+      //   //   "forward@address.com"
+      //   // ],
+
+      //   // All emails should get forwarded on...
+      //   // this turns @domain.email as key, and forwardDestination (from config)
+      //   // as the destination for that domain
+      //   [atDomain as string]: [forwardDestination],
+      // },
     },
   };
 
