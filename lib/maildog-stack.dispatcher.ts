@@ -181,6 +181,10 @@ export const handler: SNSHandler = (event, context, callback) => {
   console.log('forwardDestination: ', forwardDestination);
   console.log('fromEmail: ', fromEmail);
 
+  const atDomainMapping = {
+    atDomain: [forwardDestination.toString()],
+  } as Record<string, Array<string>>;
+
   const overrides = {
     // This should become reply+BASE_64_ENCODED_DESTINATION
     // we need to adjust this (in the forwarding case)
@@ -205,7 +209,7 @@ export const handler: SNSHandler = (event, context, callback) => {
       // this turns @domain.email as key, and forwardDestination (from config)
       // as the destination for that domain
       //
-      atDomain: [forwardDestination],
+      atDomainMapping,
     },
   };
 
