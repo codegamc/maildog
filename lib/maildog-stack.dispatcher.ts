@@ -7,11 +7,18 @@ import {
 } from 'aws-lambda';
 import LambdaForwarder from 'aws-lambda-ses-forwarder';
 
+/**
+ * The config for Dispatcher
+ */
 export interface DispatcherConfig {
   fromEmail?: string | null;
   forwardMapping: Record<string, string[]>;
 }
 
+/**
+ * Checks if an object is an SESMessage. Specifically checks if Mail and Reciept are present.
+ *  Does not check content or notificationType
+ */
 function isSESMessage(message: any): message is SESMessage {
   return (
     typeof message.mail !== 'undefined' &&
@@ -29,6 +36,11 @@ function isSESReceiptS3Action(
   );
 }
 
+/**
+ * Converts an SNS Event into an SES Message.
+ * The description of an SES message is here:
+ * https://docs.aws.amazon.com/ses/latest/DeveloperGuide/receiving-email-notifications-contents.html#receiving-email-notifications-contents-top-level-json-object
+ */
 function getSESMessage(event: SNSEvent): SESMessage {
   if (event.Records.length !== 1) {
     throw new Error(
@@ -57,6 +69,10 @@ function getSESMessage(event: SNSEvent): SESMessage {
 
 /**
  * This handler will send a message from the SNS topic and forward it to the downstream email address.
+ *
+ *
+ * Note to self: The SES rule set is not capable of handling reciept of an email that is sent to a subdomain.
+ *
  */
 export const handler: SNSHandler = (event, context, callback) => {
   let message: SESMessage;
@@ -65,6 +81,7 @@ export const handler: SNSHandler = (event, context, callback) => {
   try {
     message = getSESMessage(event);
 
+    console.log('message');
     console.log(message);
 
     if (!isSESReceiptS3Action(message.receipt.action)) {
@@ -81,40 +98,115 @@ export const handler: SNSHandler = (event, context, callback) => {
     throw e;
   }
 
-  // Now that we know its an SESMessage...
-  //
-  // not sure what this is
+  // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
+  // Now that we know its an SESMessage, we can process it and establish the config required to return the message.       //
+  // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // // //
 
-  console.log('message.receipt.action.objectKey');
-  console.log(message.receipt.action.objectKey);
+  // IF the destination (message.receipt.recipients) contains "reply+AAABBCCC" then we need to treat this as a server-should-reply instead of incoming
+  // reply: we respond to the original sender. Reply-all wil be an edge case to handle... (handle in encoding?) (multi-reply-encode?)
 
+  // incoming: modify payload and forward it to the expected address.
+
+  // This gets the domain that the email was sent to with a trailing slash
   const emailKeyPrefix = message.receipt.action.objectKey.replace(
     message.mail.messageId,
     '',
   );
 
-  console.log('emailKeyPrefix');
-  console.log(emailKeyPrefix);
-
-  console.log('message.mail.messageId');
-  console.log(message.mail.messageId);
-
   // This is the bucket that contains the email?
   const emailBucket = message.receipt.action.bucketName;
+
+  // TODO: Add description here...
+  const rawConfig = process.env.CONFIG_PER_KEY_PREFIX ?? {};
+
+  console.log('rawConfig initally');
+  console.log(rawConfig);
 
   const config = (process.env.CONFIG_PER_KEY_PREFIX ?? {}) as Record<
     string,
     DispatcherConfig
   >;
 
+  console.log('config initally');
+  console.log(config);
+
+  // https://github.com/arithmetric/aws-lambda-ses-forwarder/blob/master/index.js
   const overrides = {
+    // An object that defines the S3 storage location and mapping for email forwarding.
     config: {
+      // Not sure what this does:
+      // this notation is weird but i'm guessing this is actually getting the forwardMapping?
+
+      // This returns the whole chunk of the JSON of the config. The "emailKeyPrefix" is the domain,
+      // so returning the domain as a key
       ...config[emailKeyPrefix],
+
+      // allowPlusSign: Enables support for plus sign suffixes on email addresses.
+      //   If set to `true`, the username/mailbox part of an email address is parsed
+      //   to remove anything after a plus sign. For example, an email sent to
+      //   `example+test@example.com` would be treated as if it was sent to
+      //   `example@example.com`.
       allowPlusSign: true,
+
+      // The email key prefix is the domain of the original recipient.
       emailKeyPrefix,
+
+      // The bucket that contains the email?
       emailBucket,
+
+      // Supports:
+      // fromEmail:"" // Forwarded emails will come from this verified address
+      // subjectPrefix:"" // Forwarded emails subject will contain this prefix
+      // emailBucket:""
+      // emailKeyPrefix:""  // Include the trailing slash.
+      // forwardMapping: {
+      //     example@domain.com: [
+      //      "newExamole@domain.com"
+      //    ]
+      //}
+    },
+
+    // Also available:
+
+    // A function that accepts log messages for reporting. By default, this is set to console.log
+    // log: () -> {},
+
+    // An array of functions that should be executed to process and forward the email.
+    // parse, transform, fetch, process, send...
+    // we don't want to do anything here at the moment since that's a lot to unpack from the default.
+    // steps:[],
+  };
+
+  const overridesFuture = {
+    // This should become reply+BASE_64_ENCODED_DESTINATION
+    // we need to adjust this (in the forwarding case)
+    fromEmail: 'noreply@domain.email',
+
+    // We don't want a subject prefix.
+    subjectPrefix: '',
+
+    // The bucket the original email is contained in
+    emailBucket: emailBucket,
+
+    // Do we really want or care about this? // TODO
+    allowPlusSign: true,
+    //
+    forwardMapping: {
+      // "example@domain.com":[
+      //   "forward@address.com"
+      // ],
+
+      // All emails should get forwarded on...
+      //
+      '@example.com': ['forward@address.com'],
     },
   };
+
+  console.log('config post override');
+  console.log(config);
+
+  console.log('overrides');
+  console.log(overrides);
 
   // Simulate SES Event so we can utilise aws-lambda-ses-forwarder for now
   // Based on documentation from
@@ -124,13 +216,10 @@ export const handler: SNSHandler = (event, context, callback) => {
       {
         eventSource: 'aws:ses',
         eventVersion: '1.0',
-        ses: message,
+        ses: message, // this is logged earlier in method
       },
     ],
   };
-
-  console.log('sesEvent');
-  console.log(sesEvent);
 
   // SesEvent: Passes in Message
   // Message contains the SESEmail object
@@ -139,5 +228,11 @@ export const handler: SNSHandler = (event, context, callback) => {
   // Callback: passed into handle
   // ?
   // Overrides: Contains a config, (allow plus sign, email prefix, bucket)
+
+  /**
+   * This changes the "from" header to show the recipient (eg. it turns from:"example@domain.com" to "maildog@domain.email" ).
+   * It adds a "reply to" address, so replying to the forwarded address replies you to the original.
+   */
+  // Do i need this or can i recreate this easily using the existing SES API?
   LambdaForwarder.handler(sesEvent, context, callback, overrides);
 };
