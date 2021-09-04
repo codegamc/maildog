@@ -189,7 +189,7 @@ export const handler: SNSHandler = (event, context, callback) => {
 
   const overrides = {
     config: {
-      ...config[emailKeyPrefix],
+      // ...config[emailKeyPrefix],
 
       // This should become reply+BASE_64_ENCODED_DESTINATION
       // we need to adjust this (in the forwarding case)
@@ -207,17 +207,17 @@ export const handler: SNSHandler = (event, context, callback) => {
       // Do we really want or care about this? // TODO
       allowPlusSign: true,
       //
-      // forwardMapping: {
-      //   //TODO: in future, any special overrides can end up here (if special domains are treated differently)
-      //   // "example@domain.com":[
-      //   //   "forward@address.com"
-      //   // ],
+      forwardMapping: {
+        //TODO: in future, any special overrides can end up here (if special domains are treated differently)
+        // "example@domain.com":[
+        //   "forward@address.com"
+        // ],
 
-      //   // All emails should get forwarded on...
-      //   // this turns @domain.email as key, and forwardDestination (from config)
-      //   // as the destination for that domain
-      //   [atDomain as string]: [forwardDestination],
-      // },
+        // All emails should get forwarded on...
+        // this turns @domain.email as key, and forwardDestination (from config)
+        // as the destination for that domain
+        [atDomain as string]: [forwardDestination],
+      },
     },
   };
 
@@ -230,28 +230,17 @@ export const handler: SNSHandler = (event, context, callback) => {
   // Simulate SES Event so we can utilise aws-lambda-ses-forwarder for now
   // Based on documentation from
   // https://docs.aws.amazon.com/ses/latest/DeveloperGuide/receiving-email-notifications-contents.html#receiving-email-notifications-contents-top-level-json-object
+  // SesEvent: Passes in Message
+  // Message contains the SESEmail object
   const sesEvent: SESEvent = {
     Records: [
       {
         eventSource: 'aws:ses',
         eventVersion: '1.0',
-        ses: message, // this is logged earlier in method
+        ses: message,
       },
     ],
   };
 
-  // SesEvent: Passes in Message
-  // Message contains the SESEmail object
-  // Context: passed into handle
-  // ?
-  // Callback: passed into handle
-  // ?
-  // Overrides: Contains a config, (allow plus sign, email prefix, bucket)
-
-  /**
-   * This changes the "from" header to show the recipient (eg. it turns from:"example@domain.com" to "maildog@domain.email" ).
-   * It adds a "reply to" address, so replying to the forwarded address replies you to the original.
-   */
-  // Do i need this or can i recreate this easily using the existing SES API?
   LambdaForwarder.handler(sesEvent, context, callback, overrides);
 };
