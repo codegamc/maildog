@@ -193,7 +193,7 @@ export const handler: SNSHandler = (event, context, callback) => {
 
       // This should become reply+BASE_64_ENCODED_DESTINATION
       // we need to adjust this (in the forwarding case)
-      // fromEmail: fromEmail,
+      fromEmail: fromEmail,
 
       // We don't want a subject prefix.
       subjectPrefix: '',
