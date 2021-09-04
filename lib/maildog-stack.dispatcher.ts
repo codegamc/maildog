@@ -108,6 +108,8 @@ export const handler: SNSHandler = (event, context, callback) => {
   // incoming: modify payload and forward it to the expected address.
 
   // This gets the domain that the email was sent to with a trailing slash
+  // the object key is structured <domain>/<message id>
+  // We can probably do message.receipt.action.objectKeyPrefix instead...
   const emailKeyPrefix = message.receipt.action.objectKey.replace(
     message.mail.messageId,
     '',
@@ -198,6 +200,9 @@ export const handler: SNSHandler = (event, context, callback) => {
 
       // The bucket the original email is contained in
       emailBucket: emailBucket,
+
+      // emailKeyPrefi
+      emailKeyPrefix: emailKeyPrefix,
 
       // Do we really want or care about this? // TODO
       allowPlusSign: true,
